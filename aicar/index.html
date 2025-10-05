@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Yapay Zeka - Araba Simülasyonu (Pist Seçimli - Tam)</title>
+  <style>
+    body { 
+      font-family: "Segoe UI", sans-serif; 
+      margin:0; 
+      padding:20px;
+      background:#1a1a2e; 
+      color:#e6e6e6; 
+      display:flex;
+      flex-direction:column;
+      align-items:center; 
+    }
+    h1 { color:#4cc9f0; margin-bottom:8px; }
+    .container {
+      width:100%;
+      max-width:1400px;
+      display:flex;
+      flex-direction:row;
+      gap: 20px;
+    }
+    .left-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .right-panel {
+      width: 300px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .canvas-container {
+      margin:18px 0;
+      border:3px solid #4cc9f0;
+      border-radius:10px;
+      overflow:hidden;
+    }
+    canvas {
+      background:#16213e;
+      display:block;
+    }
+    .controls {
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+      justify-content:center;
+      margin:12px 0;
+    }
+    button {
+      padding:8px 16px;
+      border-radius:6px;
+      border:none;
+      background:#4cc9f0;
+      color:#111;
+      font-weight:700;
+      cursor:pointer;
+      transition: all 0.3s ease;
+    }
+    button:hover {
+      background:#2b8cb6;
+    }
+    button:disabled {
+      background:#666;
+      cursor:not-allowed;
+      opacity:0.5;
+    }
+    .optimize-btn {
+      background:#f72585 !important;
+    }
+    .optimize-btn:hover {
+      background:#d01257 !important;
+    }
+    .slider-container {
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+    input[type=range] {
+      width:160px;
+    }
+    select {
+      padding:6px;
+      border-radius:6px;
+      border:1px solid #2b8cb6;
+      background:#0f3460;
+      color:#e6e6e6;
+    }
+    .stats {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      background: #0f3460;
+      padding: 20px;
+      border-radius: 8px;
+    }
+    .stat-item {
+      text-align: center;
+    }
+    .stat-item div:first-child {
+      font-size: 1.2rem;
+      margin-bottom: 8px;
+    }
+    .stat-value {
+      font-size: 2.2rem;
+      color: #4cc9f0;
+      font-weight: 700;
+    }
+    .info {
+      background:#0f3460;
+      padding:12px;
+      border-radius:8px;
+    }
+    small {
+      color:#bfbfbf;
+    }
+    .route-info {
+      background:#0f3460;
+      padding:15px;
+      border-radius:8px;
+      text-align:center;
+    }
+    .route-distance {
+      font-size:1.8rem;
+      color:#f72585;
+      font-weight:700;
+      margin-top:8px;
+    }
+    .optimization-info {
+      background:#0f3460;
+      padding:15px;
+      border-radius:8px;
+      text-align:center;
+      border: 2px solid #f72585;
+    }
+    
+    @media (max-width: 1200px) {
+      .container {
+        flex-direction: column;
+      }
+      .right-panel {
+        width: 100%;
+        flex-direction: row;
+        flex-wrap: wrap;
+        
+      }
+      .stats {
+        flex: 1;
+        min-width: 300px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Yapay Zeka - Araba Simülasyonu</h1>
+  
+  <div class="container">
+    <div class="left-panel">
+      <div class="controls">
+        <button id="startBtn">Başlat</button>
+        <button id="resetBtn">Sıfırla</button>
+        <button id="optimizeBtn" disabled>Optimum Rota Öğret</button>
+
+        <div class="slider-container">
+          <label for="populationSize">Popülasyon:</label>
+          <input id="populationSize" type="range" min="10" max="100" value="30">
+          <span id="populationValue">30</span>
+        </div>
+
+        <div class="slider-container">
+          <label for="mutationRate">Mutasyon Oranı:</label>
+          <input id="mutationRate" type="range" min="1" max="40" value="15">
+          <span id="mutationValue">15%</span>
+        </div>
+
+        <div class="slider-container">
+          <label for="speedSlider">Hız:</label>
+          <input id="speedSlider" type="range" min="1" max="10" value="1">
+          <span id="speedValue">1x</span>
+        </div>
+
+        <div class="slider-container">
+          <label for="trackSelect">Pist:</label>
+          <select id="trackSelect">
+            <option value="easy">Kolay</option>
+            <option value="normal">Normal</option>
+            <option value="hard">Zor</option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="canvas-container">
+        <canvas id="gameCanvas" width="1400" height="800"></canvas>
+      </div>
+    </div>
+    
+    <div class="right-panel">
+      <div class="stats">
+        <div class="stat-item">
+          <div>Nesil</div>
+          <div class="stat-value" id="generation">1</div>
+        </div>
+        <div class="stat-item">
+          <div>En İyi Mesafe</div>
+          <div class="stat-value" id="bestScore">0</div>
+        </div>
+        <div class="stat-item">
+          <div>Yaşayan</div>
+          <div class="stat-value" id="alive">0</div>
+        </div>
+      </div>
+      
+      <div class="route-info">
+        <div>İlk Tamamlanan Rota</div>
+        <div class="route-distance" id="firstRoute">-</div>
+        <small>Turu tamamlayan ilk araç</small>
+      </div>
+      
+      <div class="route-info" id="optimizationPanel" style="display:none;">
+        <div>Optimizasyon Modu</div>
+        <div class="route-distance" id="currentOptimalRoute">-</div>
+        <small id="optimizationStatus">En kısa rotayı arıyor...</small>
+      </div>
+    </div>
+  </div>
+
+  <script>
+/* ------------------ DOM & global vars ------------------ */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const startBtn = document.getElementById('startBtn');
+const resetBtn = document.getElementById('resetBtn');
+const optimizeBtn = document.getElementById('optimizeBtn');
+const popSlider = document.getElementById('populationSize');
+const mutSlider = document.getElementById('mutationRate');
+const popValue = document.getElementById('populationValue');
+const mutValue = document.getElementById('mutationValue');
+const genEl = document.getElementById('generation');
+const bestEl = document.getElementById('bestScore');
+const aliveEl = document.getElementById('alive');
+const speedSlider = document.getElementById('speedSlider');
+const speedValue = document.getElementById('speedValue');
+const trackSelect = document.getElementById('trackSelect');
+const firstRouteEl = document.getElementById('firstRoute');
+const optimizationPanel = document.getElementById('optimizationPanel');
+const currentOptimalRouteEl = document.getElementById('currentOptimalRoute');
+const optimizationStatusEl = document.getElementById('optimizationStatus');
+
+let animationId = null;
+let population = [];
+let generation = 1;
+let simulationRunning = false;
+let simSpeed = 1;
+let outerPoints = [], innerPoints = [], checkpoints = [];
+let allTimeBestDistance = 0; // Tüm zamanların en iyi mesafesi
+
+// Rota optimizasyonu için yeni değişkenler
+let isOptimizingRoute = false;
+let firstCompletedCar = null; // İlk turu tamamlayan araç
+let optimizingCar = null; // Optimizasyon yapan tek araç
+let bestOptimalRoute = Infinity;
+let attemptCount = 0; // Kaç deneme yapıldığı
+
+popValue.textContent = popSlider.value;
+mutValue.textContent = mutSlider.value + '%';
+speedValue.textContent = simSpeed + 'x';
+
+popSlider.addEventListener('input', ()=> popValue.textContent = popSlider.value);
+mutSlider.addEventListener('input', ()=> mutValue.textContent = mutSlider.value + '%');
+speedSlider.addEventListener('input', ()=> { simSpeed = parseInt(speedSlider.value); speedValue.textContent = simSpeed + 'x'; });
+
+/* ------------------ Tracks (Kolay, Normal, Zor) ------------------ */
+const tracks = {
+  easy: {
+    outer: [
+      {x:100,y:100},{x:1300,y:100},{x:1350,y:150},
+      {x:1350,y:650},{x:1300,y:700},{x:100,y:700},
+      {x:50,y:650},{x:50,y:150},{x:100,y:100}
+    ],
+    inner: [
+      {x:250,y:250},{x:1150,y:250},{x:1150,y:550},
+      {x:250,y:550},{x:250,y:250}
+    ],
+    checkpoints: [
+      {x:700,y:130, radius:15},
+      {x:1250,y:400, radius:15},
+      {x:700,y:670, radius:15},
+      {x:150,y:400, radius:15}
+    ],
+    startPos: {x:200,y:400, rotation:0}
+  },
+  normal: {
+    outer: [
+      {x:80,y:120},{x:600,y:80},{x:1000,y:120},{x:1280,y:200},
+      {x:1350,y:350},{x:1300,y:500},{x:1000,y:650},{x:600,y:720},
+      {x:200,y:700},{x:80,y:600},{x:40,y:400},{x:80,y:200},{x:80,y:120}
+    ],
+    inner: [
+      {x:220,y:240},{x:580,y:200},{x:900,y:220},{x:1140,y:300},
+      {x:1180,y:420},{x:1100,y:520},{x:880,y:600},{x:560,y:640},
+      {x:300,y:620},{x:180,y:520},{x:160,y:400},{x:180,y:280},{x:220,y:240}
+    ],
+    checkpoints: [
+      {x:500,y:100, radius:15},
+      {x:1100,y:250, radius:15},
+      {x:1200,y:500, radius:15},
+      {x:800,y:680, radius:15},
+      {x:300,y:650, radius:15},
+      {x:100,y:350, radius:15}
+    ],
+    startPos: {x:180,y:400, rotation:0}
+  },
+
+  hard: {
+    outer: [
+        {x:71,y:106},{x:97,y:299},{x:130,y:373},{x:85,y:572},{x:54,y:663},{x:185,y:760},{x:398,y:784},{x:636,y:741},{x:846,y:775},{x:1081,y:730},{x:1296,y:740},{x:1363,y:593},{x:1390,y:411},{x:1291,y:266},{x:1332,y:149},{x:1165,y:28},{x:980,y:55},{x:630,y:8},{x:469,y:76},{x:288,y:40},{x:73,y:101}
+    ],
+    inner: [
+        {x:272,y:172},{x:303,y:347},{x:225,y:538},{x:158,y:607},{x:240,y:675},{x:386,y:714},{x:568,y:674},{x:731,y:651},{x:835,y:707},{x:1093,y:643},{x:1214,y:661},{x:1290,y:554},{x:1293,y:440},{x:1196,y:312},{x:1214,y:194},{x:1094,y:145},{x:938,y:135},{x:679,y:106},{x:562,y:150},{x:486,y:182},{x:273,y:167}
+    ],
+    checkpoints: [],
+    startPos: {x:250, y:300, rotation: 0}
+  }
+};
+
+// Mevcut seçenekleri temizle
+trackSelect.innerHTML = "";
+
+// tracks objesindeki tüm pistleri comboboxa ekle
+for (const trackName in tracks) {
+    const option = document.createElement('option');
+    option.value = trackName;
+    option.textContent = trackName.charAt(0).toUpperCase() + trackName.slice(1); // Baş harfi büyük yap
+    trackSelect.appendChild(option);
+}
+
+function loadTrack(name){
+  const t = tracks[name];
+  outerPoints = t.outer.map(p => ({x:p.x, y:p.y}));
+  innerPoints = t.inner.map(p => ({x:p.x, y:p.y}));
+  checkpoints = t.checkpoints.map(cp => ({x:cp.x, y:cp.y, radius:cp.radius || 15}));
+}
+trackSelect.addEventListener('change', ()=> { loadTrack(trackSelect.value); resetSimulation(); });
+
+/* ------------------ Geometry helpers ------------------ */
+function getIntersection(x1,y1,x2,y2,x3,y3,x4,y4){
+  const denom = (x1-x2)*(y3-y4) - (y1-y2)*(x3-x4);
+  if (Math.abs(denom) < 1e-9) return null;
+  const t = ((x1-x3)*(y3-y4) - (y1-y3)*(x3-x4)) / denom;
+  const u = -((x1-x2)*(y1-y3) - (y1-y2)*(x1-x3)) / denom;
+  if (t > 0 && t < 1 && u > 0 && u < 1){
+    return { x: x1 + t*(x2-x1), y: y1 + t*(y2-y1) };
+  }
+  return null;
+}
+
+function getTrackSegments(){
+  const segs = [];
+  for (let i=0;i<outerPoints.length-1;i++) segs.push({p1: outerPoints[i], p2: outerPoints[i+1]});
+  for (let i=0;i<innerPoints.length-1;i++) segs.push({p1: innerPoints[i], p2: innerPoints[i+1]});
+  return segs;
+}
+
+function pointInPolygon(point, polygon){
+  let inside=false;
+  for (let i=0,j=polygon.length-1;i<polygon.length;j=i++){
+    const xi = polygon[i].x, yi = polygon[i].y;
+    const xj = polygon[j].x, yj = polygon[j].y;
+    const intersect = ((yi>point.y) !== (yj>point.y)) &&
+      (point.x < (xj - xi) * (point.y - yi) / (yj - yi + 1e-9) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+/* ------------------ Neural network (5 -> 6 -> 2) ------------------ */
+class NeuralNet {
+  constructor(){
+    this.w1 = Array.from({length:5*6}, ()=>Math.random()*2 - 1);
+    this.w2 = Array.from({length:6*2}, ()=>Math.random()*2 - 1);
+  }
+  forward(inputs){
+    const hidden = new Array(6);
+    for (let i=0;i<6;i++){
+      let s = 0;
+      for (let j=0;j<5;j++) s += inputs[j] * this.w1[i*5 + j];
+      hidden[i] = Math.tanh(s);
+    }
+    const out = new Array(2);
+    for (let i=0;i<2;i++){
+      let s = 0;
+      for (let j=0;j<6;j++) s += hidden[j] * this.w2[i*6 + j];
+      out[i] = 1 / (1 + Math.exp(-s)); // sigmoid
+    }
+    return out;
+  }
+  clone(){ const n = new NeuralNet(); n.w1 = [...this.w1]; n.w2 = [...this.w2]; return n; }
+  
+  // Hafif mutasyon (optimizasyon için)
+  mutateSlightly(rate = 0.1) {
+    for (let i = 0; i < this.w1.length; i++) {
+      if (Math.random() < rate) {
+        this.w1[i] += (Math.random() * 0.1 - 0.05); // Çok küçük değişim
+      }
+    }
+    for (let i = 0; i < this.w2.length; i++) {
+      if (Math.random() < rate) {
+        this.w2[i] += (Math.random() * 0.1 - 0.05);
+      }
+    }
+  }
+}
+
+/* ------------------ Car ------------------ */
+class Car {
+  constructor(brain = null){
+    // başlangıç pozisyonu: pistin soluna yakın sabit
+    this.x = 125; this.y = 300;
+    this.width = 20; this.height = 12;
+    this.speed = 0;
+    this.acc = 0.05;         // ivmeyi düşük tuttuk
+    this.maxSpeed = 2.5;     // makul max hız
+    this.rotation = Math.PI/2;
+    this.rotationSpeed = 0.03;
+    this.sensorLength = 140;
+    this.fitness = 0;
+    this.totalDistance = 0;
+    this.checkpoint = 0;
+    this.crashed = false;
+    this.brain = brain ? brain.clone() : new NeuralNet();
+    this.lifetime = 0;
+    this.sensorHits = []; // sensör çizimi için
+    this.lapCompleted = false; // YENİ: Tur tamamlandı mı?
+    this.finishLineCrossed = true; // Başlangıçta zaten finish line'da, bu yüzden true
+    this.minDistanceFromStart = 0; // Başlangıçtan en az bu kadar uzaklaştı mı?
+    this.hasLeftStartArea = false; // Başlangıç bölgesinden ayrıldı mı?
+    
+    // Rota optimizasyonu için yeni özellikler
+    this.routePoints = []; // Aracın izlediği rotayı kaydet
+    this.actualDistance = 0; // Gerçek kat edilen yol mesafesi
+    this.isOptimizing = false; // Bu araç optimizasyon yapıyor mu?
+  }
+
+  sense(){
+    const angles = [-Math.PI/4, -Math.PI/8, 0, Math.PI/8, Math.PI/4];
+    const readings = [];
+    this.sensorHits = [];
+    const segments = getTrackSegments();
+    const startX = this.x + Math.cos(this.rotation) * this.width/2;
+    const startY = this.y + Math.sin(this.rotation) * this.width/2;
+
+    for (let a of angles){
+      const rayAngle = this.rotation + a;
+      const endX = startX + Math.cos(rayAngle) * this.sensorLength;
+      const endY = startY + Math.sin(rayAngle) * this.sensorLength;
+
+      let minD = this.sensorLength;
+      let closest = null;
+      for (const seg of segments){
+        const inter = getIntersection(startX, startY, endX, endY, seg.p1.x, seg.p1.y, seg.p2.x, seg.p2.y);
+        if (inter){
+          const d = Math.hypot(startX - inter.x, startY - inter.y);
+          if (d < minD){ minD = d; closest = inter; }
+        }
+      }
+      readings.push(minD / this.sensorLength);
+      this.sensorHits.push( closest ? {x: closest.x, y: closest.y, d: minD} : null );
+    }
+    return readings;
+  }
+
+  move(){
+    if (this.crashed) return;
+    this.lifetime++;
+    const inputs = this.sense(); // 5 normalized values
+    const out = this.brain.forward(inputs); // two outputs
+
+    // hız ve hareket
+    this.speed += this.acc;
+    if (this.speed > this.maxSpeed) this.speed = this.maxSpeed;
+
+    // steer: out[0] -> -0.5..0.5 scaled
+    this.rotation += (out[0] - 0.5) * this.rotationSpeed * 2;
+
+    // ileri hareket
+    this.x += Math.cos(this.rotation) * this.speed;
+    this.y += Math.sin(this.rotation) * this.speed;
+
+    // Rota kaydetme (her zaman)
+    if (this.lifetime % 5 === 0) {
+        this.routePoints.push({x: this.x, y: this.y});
+    }
+
+    // SADECE tur tamamlanmadıysa mesafe sayacını artır
+    if (!this.lapCompleted) {
+      this.totalDistance += this.speed;
+      this.fitness += this.speed * 0.05 + 0.05;
+    }
+
+    // checkpoint kontrolü
+    this.checkFinishLine();
+
+    // collision kontrolü
+    this.checkCollision();
+    if (this.crashed && this.isOptimizing) {
+      // Optimizasyon modunda çarpışma durumunda yeniden başlat
+      this.respawnForOptimization();
+    } else if (this.crashed) {
+      this.fitness -= 20;
+    }
+  }
+
+  calculateActualRouteDistance() {
+      this.actualDistance = 0;
+      for (let i = 1; i < this.routePoints.length; i++) {
+          const dx = this.routePoints[i].x - this.routePoints[i-1].x;
+          const dy = this.routePoints[i].y - this.routePoints[i-1].y;
+          this.actualDistance += Math.sqrt(dx * dx + dy * dy);
+      }
+  }
+
+  respawnForOptimization() {
+      // Optimizasyon modunda çarpışırsa başa döndür ve hafif mutasyon uygula
+      this.x = 125; 
+      this.y = 300;
+      this.rotation = Math.PI/2;
+      this.speed = 0;
+      this.crashed = false;
+      this.lapCompleted = false;
+      this.finishLineCrossed = true;
+      this.minDistanceFromStart = 0;
+      this.hasLeftStartArea = false;
+      this.routePoints = [];
+      this.actualDistance = 0;
+      this.lifetime = 0;
+      
+      // Hafif mutasyon uygula
+      this.brain.mutateSlightly(0.05);
+      
+      attemptCount++;
+      optimizationStatusEl.textContent = `Deneme ${attemptCount} - En kısa rotayı arıyor...`;
+  }
+
+  checkFinishLine(){
+    const startX = 125, startY = 300; // Başlangıç noktası
+    const finishLineY = startY; // Yatay çizgi aynı Y koordinatında
+    const finishLineStartX = startX - 100; // 200px genişlik için -100 ile +100
+    const finishLineEndX = startX + 100;
+    
+    // Araç başlangıçtan ne kadar uzakta?
+    const distanceFromStart = Math.hypot(this.x - startX, this.y - startY);
+    
+    // En fazla uzaklık kaydı (tur attığından emin olmak için)
+    if (distanceFromStart > this.minDistanceFromStart) {
+      this.minDistanceFromStart = distanceFromStart;
+    }
+    
+    // Başlangıç bölgesinden ayrıldı mı? (50px uzaklaştı)
+    if (!this.hasLeftStartArea && distanceFromStart > 50) {
+      this.hasLeftStartArea = true;
+      this.finishLineCrossed = false; // Artık finish line geçiş sayabiliriz
+    }
+    
+    // Finish line kontrolü: X aralığında ve Y koordinatına yakın
+    const onFinishLine = (this.x >= finishLineStartX && this.x <= finishLineEndX && 
+                          Math.abs(this.y - finishLineY) < 15);
+    
+    // Sadece start bölgesinden ayrıldıktan sonra finish line geçişini say
+    if (onFinishLine && !this.finishLineCrossed && this.hasLeftStartArea) {
+      this.finishLineCrossed = true;
+      this.fitness += 50;
+      
+      // Tur tamamlama: finish line'ı geçti VE en az 300px uzaklaştı (yarım tur garantisi)
+      if (this.minDistanceFromStart > 300 && !this.lapCompleted) {
+        this.lapCompleted = true;
+        this.fitness += 200;
+        
+        // Gerçek rota mesafesini hesapla
+        this.calculateActualRouteDistance();
+        
+        if (!firstCompletedCar) {
+            // İlk turu tamamlayan araç
+            firstCompletedCar = this;
+            firstRouteEl.textContent = Math.floor(this.actualDistance) + 'px';
+            optimizeBtn.disabled = false;
+            console.log(`FIRST LAP COMPLETED! Route distance: ${Math.floor(this.actualDistance)}`);
+        }
+        
+        if (this.isOptimizing) {
+            // Optimizasyon modunda tur tamamlandı
+            if (this.actualDistance < bestOptimalRoute) {
+                bestOptimalRoute = this.actualDistance;
+                currentOptimalRouteEl.textContent = Math.floor(this.actualDistance) + 'px';
+                optimizationStatusEl.textContent = `Yeni rekor! ${Math.floor(this.actualDistance)}px - Devam ediyor...`;
+                console.log(`NEW OPTIMAL ROUTE: ${Math.floor(this.actualDistance)}px`);
+            }
+            
+            // Optimizasyon için yeniden başlat
+            setTimeout(() => {
+                this.respawnForOptimization();
+            }, 1000); // 1 saniye bekle, sonra tekrar başla
+        }
+      }
+    }
+  }
+
+  checkCollision(){
+    // 1) Aracın köşe kenarlarının pist segmentleriyle kesişmesi
+    const cos = Math.cos(this.rotation), sin = Math.sin(this.rotation);
+    const hw = this.width/2, hh = this.height/2;
+    const corners = [
+      {x: this.x + cos*hw - sin*hh, y: this.y + sin*hw + cos*hh},
+      {x: this.x + cos*hw + sin*hh, y: this.y + sin*hw - cos*hh},
+      {x: this.x - cos*hw + sin*hh, y: this.y - sin*hw - cos*hh},
+      {x: this.x - cos*hw - sin*hh, y: this.y - sin*hw + cos*hh}
+    ];
+
+    const segs = getTrackSegments();
+    for (let i=0;i<4;i++){
+      const p1 = corners[i];
+      const p2 = corners[(i+1)%4];
+      for (const seg of segs){
+        if (getIntersection(p1.x,p1.y,p2.x,p2.y, seg.p1.x,seg.p1.y, seg.p2.x,seg.p2.y)){
+          this.crashed = true;
+          return;
+        }
+      }
+    }
+
+    // 2) Merkezi noktanın dış/ iç kontrolü (basit)
+    if (!pointInPolygon({x:this.x,y:this.y}, outerPoints) || pointInPolygon({x:this.x,y:this.y}, innerPoints)){
+      this.crashed = true;
+      return;
+    }
+  }
+
+  draw(){
+    // araba - optimizasyon modundakini farklı renkte göster
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.rotation);
+    ctx.globalAlpha = this.crashed ? 0.3 : 1;
+    
+    if (this.isOptimizing) {
+      ctx.fillStyle = '#f72585'; // Optimizasyon modunda pembe
+    } else if (this.lapCompleted) {
+      ctx.fillStyle = '#FFD700'; // Tur tamamlayanlar altın
+    } else {
+      ctx.fillStyle = '#4cc9f0'; // Normal mavi
+    }
+    
+    ctx.fillRect(-this.width/2, -this.height/2, this.width, this.height);
+    ctx.fillStyle = '#f72585';
+    ctx.fillRect(this.width/2 - 2, -this.height/2, 2, this.height);
+    ctx.restore();
+
+    // sensör çizimi
+    const startX = this.x + Math.cos(this.rotation) * this.width/2;
+    const startY = this.y + Math.sin(this.rotation) * this.width/2;
+    const angles = [-Math.PI/4, -Math.PI/8, 0, Math.PI/8, Math.PI/4];
+    for (let i=0;i<angles.length;i++){
+      const hit = this.sensorHits[i];
+      const endX = startX + Math.cos(this.rotation + angles[i]) * this.sensorLength;
+      const endY = startY + Math.sin(this.rotation + angles[i]) * this.sensorLength;
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      if (hit){
+        ctx.lineTo(hit.x, hit.y);
+        // renk: yakınsa kırmızı, uzaksa sarı-yeşil geçişli
+        const t = Math.max(0, Math.min(1, 1 - (hit.d / this.sensorLength)));
+        const r = Math.floor(255 * t), g = Math.floor(200 * (1 - t));
+        ctx.strokeStyle = `rgba(${r},${g},80,0.95)`;
+      } else {
+        ctx.lineTo(endX, endY);
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+      }
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+
+      if (hit){
+        ctx.beginPath();
+        ctx.arc(hit.x, hit.y, 3, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.fill();
+      }
+    }
+  }
+}
+
+/* ------------------ GA helpers ------------------ */
+function createPopulation(n){ return Array.from({length:n}, ()=> new Car()); }
+
+function mutate(brain){
+  const baseRate = parseInt(mutSlider.value) / 100;
+  const rate = baseRate / (1 + generation / 40);
+  for (let i=0;i<brain.w1.length;i++) if (Math.random() < rate) brain.w1[i] += Math.random()*0.4 - 0.2;
+  for (let i=0;i<brain.w2.length;i++) if (Math.random() < rate) brain.w2[i] += Math.random()*0.4 - 0.2;
+}
+
+function selectParentByTournament(pop){
+  const tsize = Math.min(5, pop.length);
+  let best = null;
+  for (let i=0;i<tsize;i++){
+    const cand = pop[Math.floor(Math.random()*pop.length)];
+    if (!best || cand.totalDistance > best.totalDistance) best = cand;
+  }
+  return best;
+}
+
+function nextGeneration(){
+  // Optimizasyon modundaysa yeni nesil oluşturma
+  if (isOptimizingRoute) return;
+
+  generation++;
+  genEl.textContent = generation;
+
+  // Normal sıralama totalDistance'a göre (kullanıcının istediği "En İyi Mesafe")
+  population.sort((a,b) => b.totalDistance - a.totalDistance);
+
+  // Bu neslin en iyi mesafesini kontrol et
+  const currentBest = population[0] ? population[0].totalDistance : 0;
+  if (currentBest > allTimeBestDistance) {
+    allTimeBestDistance = currentBest;
+  }
+
+  const newPop = [];
+  const size = parseInt(popSlider.value);
+  const eliteCount = Math.max(1, Math.floor(size * 0.1));
+
+  // elitleri doğrudan kopyala (brain klonlanır)
+  for (let i=0;i<eliteCount && i<population.length;i++){
+    newPop.push( new Car(population[i].brain) );
+  }
+
+  // geri kalanlar turnuva seçimi + mutasyon
+  while (newPop.length < size){
+    const parent = selectParentByTournament(population);
+    const child = new Car(parent.brain);
+    mutate(child.brain);
+    newPop.push(child);
+  }
+
+  population = newPop;
+}
+
+/* ------------------ Drawing track & loop ------------------ */
+function drawTrack(){
+  // dış çizgi
+  ctx.strokeStyle = '#4cc9f0';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  outerPoints.forEach((p,i)=> i? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y) );
+  ctx.closePath(); ctx.stroke();
+
+  // iç çizgi
+  ctx.beginPath();
+  innerPoints.forEach((p,i)=> i? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y) );
+  ctx.closePath(); ctx.stroke();
+
+  // checkpoints
+  for (let i=0;i<checkpoints.length;i++){
+    const c = checkpoints[i];
+    ctx.beginPath(); ctx.arc(c.x, c.y, c.radius, 0, Math.PI*2);
+    ctx.fillStyle = i%2 ? 'rgba(114,9,183,0.35)' : 'rgba(247,37,133,0.35)';
+    ctx.fill();
+  }
+  
+  // FINISH LINE - 200px genişlikte yatay çizgi
+  const startX = 125, startY = 300;
+  ctx.strokeStyle = '#FF0000';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(startX - 100, startY);
+  ctx.lineTo(startX + 100, startY);
+  ctx.stroke();
+  
+  // Finish line yazısı
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = '16px Arial';
+  ctx.fillText('FINISH', startX - 25, startY - 10);
+}
+
+function drawLoop(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawTrack();
+
+  let alive = 0;
+  for (let step=0; step<simSpeed; step++){
+    alive = 0;
+    for (const car of population){
+      car.move();
+      if (!car.crashed) alive++;
+    }
+
+    // Optimizasyon modunda değilse ve hiç yaşayan kalmadıysa yeni nesil
+    if (alive === 0 && !isOptimizingRoute){
+      nextGeneration();
+      break;
+    }
+  }
+
+  // arabaları çiz
+  for (const car of population) car.draw();
+
+  aliveEl.textContent = alive;
+
+  // Mevcut popülasyondaki en iyi mesafeyi kontrol et ve gerekirse güncelle
+  if (!isOptimizingRoute) {
+    const dvals = population.map(c => c.totalDistance || 0);
+    const currentBest = dvals.length ? Math.max(...dvals) : 0;
+    if (currentBest > allTimeBestDistance) {
+      allTimeBestDistance = currentBest;
+    }
+    
+    // Her zaman tüm zamanların en iyisini göster
+    bestEl.textContent = Math.floor(allTimeBestDistance);
+  }
+
+  if (simulationRunning) animationId = requestAnimationFrame(drawLoop);
+}
+
+/* ------------------ Route Optimization Functions ------------------ */
+function startRouteOptimization() {
+  if (!firstCompletedCar) {
+    alert('Önce en az bir araç turu tamamlamalı!');
+    return;
+  }
+  
+  // Optimizasyon modunu aç
+  isOptimizingRoute = true;
+  optimizeBtn.textContent = 'Optimizasyonu Durdur';
+  optimizeBtn.classList.add('optimize-btn');
+  
+  // Optimizasyon panelini göster
+  optimizationPanel.style.display = 'block';
+  bestOptimalRoute = firstCompletedCar.actualDistance;
+  currentOptimalRouteEl.textContent = Math.floor(bestOptimalRoute) + 'px';
+  attemptCount = 0;
+  
+  // Tek araç oluştur - ilk turu tamamlayan aracın beynini kopyala
+  optimizingCar = new Car(firstCompletedCar.brain);
+  optimizingCar.isOptimizing = true;
+  population = [optimizingCar];
+  
+  // Nesil sayacını durdur (çünkü yeni nesil yok)
+  aliveEl.textContent = '1 (Optimizasyon)';
+  
+  console.log('Route optimization started with initial distance:', Math.floor(bestOptimalRoute));
+}
+
+function stopRouteOptimization() {
+  isOptimizingRoute = false;
+  optimizeBtn.textContent = 'Optimum Rota Öğret';
+  optimizeBtn.classList.remove('optimize-btn');
+  
+  // Optimizasyon panelini gizle
+  optimizationPanel.style.display = 'none';
+  
+  // Normal popülasyon oluştur
+  population = createPopulation(parseInt(popSlider.value));
+  optimizingCar = null;
+  
+  // Nesil sayacını normale döndür
+  generation = 1;
+  genEl.textContent = generation;
+  aliveEl.textContent = population.length;
+}
+
+/* ------------------ Controls ------------------ */
+function startSimulation(){
+  if (!simulationRunning){
+    simulationRunning = true;
+    startBtn.textContent = 'Duraklat';
+    drawLoop();
+  } else {
+    simulationRunning = false;
+    startBtn.textContent = 'Devam Et';
+    cancelAnimationFrame(animationId);
+  }
+}
+
+function resetSimulation(){
+  simulationRunning = false;
+  cancelAnimationFrame(animationId);
+  startBtn.textContent = 'Başlat';
+  generation = 1;
+  allTimeBestDistance = 0; // Tüm zamanların en iyi skoru da sıfırlanır
+  
+  // Rota optimizasyonu resetle
+  isOptimizingRoute = false;
+  firstCompletedCar = null;
+  optimizingCar = null;
+  bestOptimalRoute = Infinity;
+  attemptCount = 0;
+  optimizeBtn.disabled = true;
+  optimizeBtn.textContent = 'Optimum Rota Öğret';
+  optimizeBtn.classList.remove('optimize-btn');
+  firstRouteEl.textContent = '-';
+  optimizationPanel.style.display = 'none';
+  
+  genEl.textContent = generation;
+  bestEl.textContent = 0;
+  // yeni popülasyon oluştur ve draw
+  population = createPopulation(parseInt(popSlider.value));
+  aliveEl.textContent = population.length;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawTrack();
+  // her bir arabanın ilk sensör hesabını yap (görsel için)
+  for (const c of population) c.sense();
+}
+
+startBtn.addEventListener('click', startSimulation);
+resetBtn.addEventListener('click', resetSimulation);
+
+optimizeBtn.addEventListener('click', function() {
+  if (!isOptimizingRoute) {
+    startRouteOptimization();
+  } else {
+    stopRouteOptimization();
+  }
+});
+
+window.addEventListener('load', ()=> {
+  loadTrack('easy');     // varsayılan kolay
+  resetSimulation();
+});
+  </script>
+</body>
+</html>
